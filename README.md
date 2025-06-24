@@ -34,6 +34,21 @@ Um aplicativo Flutter que mede sua frequência cardíaca usando a câmera do cel
 
 ---
 
+# Heart PPG 📲
+
+![Tela inicial](img/home.png)
+![Tela de medição](img/medicao.png)
+
+---
+
+## 🚧 Status do Projeto
+
+> **Em desenvolvimento**  
+> As telas principais e toda lógica de medição já estão implementadas.  
+> Falta apenas testes finais via debug USB em dispositivo real para garantir funcionamento 100% e ajustar detalhes finais de UX/UI.
+
+---
+
 ## 🏗️ Arquitetura & Estrutura
 
 - **Flutter + Dart 100%**
@@ -77,7 +92,7 @@ Um aplicativo Flutter que mede sua frequência cardíaca usando a câmera do cel
 
 ---
 
-## 🛠️ Instalação e uso
+## 🛠️ Instalação e uso 
 
 Pré-requisitos:  
 - Flutter 3.x  

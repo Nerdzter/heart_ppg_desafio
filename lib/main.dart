@@ -21,6 +21,7 @@ class MyApp extends StatelessWidget {
         primarySwatch: Colors.red,
       ),
       home: HomePage(cameras: cameras),
+      debugShowCheckedModeBanner: false,  // <-- ADICIONE ESTA LINHA
     );
   }
 }
