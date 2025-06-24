@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import '../utils/signal_processing.dart';
 import '../widgets/heart_rate_chart.dart';
+import 'history_service.dart';
+import '../models/heart_rate_sample.dart';
+
 
 class PPGService extends StatefulWidget {
   final CameraController controller;
@@ -61,12 +64,21 @@ class _PPGServiceState extends State<PPGService> {
       } catch (_) {}
       _isStreaming = false;
     }
+    // Salva histórico se houver leitura válida
+    if (bpm > 0 && redValues.isNotEmpty) {
+      final sample = HeartRateSample(
+        bpm: bpm,
+        timestamp: DateTime.now(),
+        signal: List.from(redValues),
+      );
+      HistoryService().addSample(sample);
+    }
     setState(() {
       measuring = false;
       bpm = 0;
     });
   }
-
+  
   double _calculateAvgRed(CameraImage image) {
     if (image.format.group == ImageFormatGroup.yuv420) {
       final plane = image.planes[0];
