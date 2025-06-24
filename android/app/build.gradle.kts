@@ -6,7 +6,7 @@ plugins {
 }
 
 android {
-    namespace = "creative.flutter.wakelock"
+    namespace = "com.example.heart_ppg"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = "27.0.12077973" // <-- Use a versão mais alta sugerida pelo erro
 
