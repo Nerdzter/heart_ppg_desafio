@@ -51,7 +51,7 @@ class HomePage extends StatelessWidget {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           const Text(
-                            'Medição de batimentos cardíacos',
+                            'Desafio - Nayderson',
                             style: TextStyle(
                               fontSize: 20,
                               fontWeight: FontWeight.w600,

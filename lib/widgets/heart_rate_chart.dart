@@ -50,3 +50,5 @@ class _ChartPainter extends CustomPainter {
   @override
   bool shouldRepaint(_ChartPainter oldDelegate) => true;
 }
+
+
