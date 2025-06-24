@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
-import 'package:wakelock/wakelock.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 import 'ppg_service.dart';
 
 class CameraService extends StatefulWidget {
   final CameraDescription camera;
 
-  const CameraService({Key? key, required this.camera}) : super(key: key);
+  const CameraService({super.key, required this.camera});
 
   @override
   State<CameraService> createState() => _CameraServiceState();
@@ -20,13 +20,15 @@ class _CameraServiceState extends State<CameraService> {
   void initState() {
     super.initState();
     _initCamera();
-    Wakelock.enable();
+    WakelockPlus.enable();
   }
 
   @override
   void dispose() {
-    _controller.dispose();
-    Wakelock.disable();
+    if (_isInitialized) {
+      _controller.dispose();
+    }
+    WakelockPlus.disable();
     super.dispose();
   }
 
