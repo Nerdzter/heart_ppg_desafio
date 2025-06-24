@@ -1,8 +1,6 @@
 
 # Heart PPG – Medidor de Frequência Cardíaca por PPG
 
-![PPG Banner](https://img.freepik.com/free-photo/medical-heart-rate-illustration-background_53876-102408.jpg)
-
 Um aplicativo Flutter que mede sua frequência cardíaca usando a câmera do celular pelo método PPG (fotopletismografia).
 
 ---
@@ -46,6 +44,36 @@ Um aplicativo Flutter que mede sua frequência cardíaca usando a câmera do cel
     - `lib/models/` – modelos de dados (`HeartRateSample`)
     - `lib/utils/` – processamento de sinal (cálculo de BPM)
     - `lib/widgets/` – gráficos reutilizáveis
+
+---
+
+## 🛠️ Linguagens e Tecnologias
+
+- **Linguagem:**  
+  - [Dart](https://dart.dev/) (100% do código da aplicação)
+- **Framework:**  
+  - [Flutter](https://flutter.dev/) (para apps Android e iOS)
+- **Bibliotecas principais:**  
+  - [`camera`](https://pub.dev/packages/camera) – captura de frames e controle da câmera
+  - [`wakelock_plus`](https://pub.dev/packages/wakelock_plus) – mantém a tela ligada durante a medição
+- **Arquitetura:**  
+  - Separação em camadas: UI, Serviços, Modelos, Utils e Widgets
+  - Modular, escalável e fácil de testar
+- **Plataformas:**  
+  - Android (com suporte a flash/câmera)
+  - iOS (com suporte a flash/câmera)
+
+---
+
+## 📦 Tecnologias Usadas
+
+![Dart](https://img.shields.io/badge/Dart-0175C2?logo=dart&logoColor=white)
+![Flutter](https://img.shields.io/badge/Flutter-02569B?logo=flutter&logoColor=white)
+![Android](https://img.shields.io/badge/Android-3DDC84?logo=android&logoColor=white)
+![iOS](https://img.shields.io/badge/iOS-000000?logo=apple&logoColor=white)
+
+- **Dart** + **Flutter**
+- Bibliotecas: camera, wakelock_plus
 
 ---
 
@@ -117,4 +145,4 @@ MIT
 
 ---
 
-**Desenvolvido por [SeuNome](https://github.com/Nerdzter) 💓**
+**Desenvolvido por [Nayderson](https://github.com/Nerdzter)**
