@@ -9,6 +9,8 @@ import 'dart:async';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'package:open_file/open_file.dart';
+import 'dart:convert';
+
 
 
 class BPMRecord {
@@ -136,33 +138,35 @@ class _PPGServiceState extends State<PPGService> with SingleTickerProviderStateM
   }
 
   Future<void> exportBPMHistoryToCSV() async {
-    try {
-      final directory = await getExternalStorageDirectory();
-      final path = directory!.path;
-      final file = File('$path/bpm_history.csv');
+  try {
+    final directory = await getExternalStorageDirectory();
+    final path = directory!.path;
+    final file = File('$path/bpm_history.csv');
 
-      final buffer = StringBuffer();
-      buffer.writeln('timestamp,bpm');
-      for (final record in bpmRecords) {
-        buffer.writeln('${record.timestamp.toIso8601String()},${record.bpm.toStringAsFixed(2)}');
-      }
+    final buffer = StringBuffer();
+    buffer.writeln('timestamp;bpm');
+    for (final record in bpmRecords) {
+      buffer.writeln('${record.timestamp.toIso8601String()};${record.bpm.toStringAsFixed(2)}');
+    }
 
-      await file.writeAsString(buffer.toString());
+    // Força a codificação UTF-8
+    await file.writeAsString(buffer.toString(), encoding: utf8);
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Arquivo salvo: $path/bpm_history.csv')),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao exportar CSV: $e')),
-        );
-      }
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Arquivo salvo: $path/bpm_history.csv')),
+      );
+    }
+
+    await OpenFile.open(file.path);
+  } catch (e) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erro ao exportar CSV: $e')),
+      );
     }
   }
-
+}
   @override
   Widget build(BuildContext context) {
     final colorGradient = [Color(0xFFFFE5EC), Color(0xFFFFB6C1)];
