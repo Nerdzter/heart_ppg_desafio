@@ -5,6 +5,17 @@ import '../widgets/heart_rate_chart.dart';
 import '../models/heart_rate_sample.dart';
 import 'history_service.dart';
 import 'dart:math';
+import 'dart:async';
+import 'dart:io';
+import 'package:path_provider/path_provider.dart';
+import 'package:open_file/open_file.dart';
+
+
+class BPMRecord {
+  final DateTime timestamp;
+  final double bpm;
+  BPMRecord({required this.timestamp, required this.bpm});
+}
 
 class PPGService extends StatefulWidget {
   final CameraController controller;
@@ -21,6 +32,9 @@ class _PPGServiceState extends State<PPGService> with SingleTickerProviderStateM
   bool _isStreaming = false;
   bool measuring = false;
   late AnimationController _pulseController;
+
+  List<BPMRecord> bpmRecords = [];
+  Timer? _bpmTimer;
 
   @override
   void initState() {
@@ -45,6 +59,13 @@ class _PPGServiceState extends State<PPGService> with SingleTickerProviderStateM
       measuring = true;
       redValues.clear();
       bpm = 0;
+      bpmRecords.clear();
+    });
+
+    _bpmTimer = Timer.periodic(Duration(milliseconds: 100), (_) {
+      if (measuring && bpm > 0) {
+        bpmRecords.add(BPMRecord(timestamp: DateTime.now(), bpm: bpm));
+      }
     });
 
     if (!_isStreaming) {
@@ -71,6 +92,8 @@ class _PPGServiceState extends State<PPGService> with SingleTickerProviderStateM
   }
 
   Future<void> _stopMeasurement() async {
+    _bpmTimer?.cancel();
+
     if (_isStreaming) {
       try {
         await widget.controller.stopImageStream();
@@ -110,6 +133,34 @@ class _PPGServiceState extends State<PPGService> with SingleTickerProviderStateM
       return count > 0 ? sum / count : 0;
     }
     return 0;
+  }
+
+  Future<void> exportBPMHistoryToCSV() async {
+    try {
+      final directory = await getExternalStorageDirectory();
+      final path = directory!.path;
+      final file = File('$path/bpm_history.csv');
+
+      final buffer = StringBuffer();
+      buffer.writeln('timestamp,bpm');
+      for (final record in bpmRecords) {
+        buffer.writeln('${record.timestamp.toIso8601String()},${record.bpm.toStringAsFixed(2)}');
+      }
+
+      await file.writeAsString(buffer.toString());
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Arquivo salvo: $path/bpm_history.csv')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao exportar CSV: $e')),
+        );
+      }
+    }
   }
 
   @override
@@ -228,17 +279,34 @@ class _PPGServiceState extends State<PPGService> with SingleTickerProviderStateM
                           ),
                         ),
                       )
-                    : ElevatedButton.icon(
-                        onPressed: _startMeasurement,
-                        icon: const Icon(Icons.favorite, color: Colors.white),
-                        label: const Text('Iniciar Medição', style: TextStyle(fontSize: 22)),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.red,
-                          padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 36),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(18),
+                    : Column(
+                        children: [
+                          ElevatedButton.icon(
+                            onPressed: _startMeasurement,
+                            icon: const Icon(Icons.favorite, color: Colors.white),
+                            label: const Text('Iniciar Medição', style: TextStyle(fontSize: 22)),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.red,
+                              padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 36),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(18),
+                              ),
+                            ),
                           ),
-                        ),
+                          const SizedBox(height: 16),
+                          ElevatedButton.icon(
+                            onPressed: bpmRecords.isNotEmpty ? exportBPMHistoryToCSV : null,
+                            icon: Icon(Icons.download),
+                            label: Text('Exportar histórico para CSV'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.pinkAccent,
+                              padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 32),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(18),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                 const SizedBox(height: 32),
                 measuring
