@@ -4,14 +4,11 @@ import '../utils/signal_processing.dart';
 import '../widgets/heart_rate_chart.dart';
 import '../models/heart_rate_sample.dart';
 import 'history_service.dart';
-import 'dart:math';
 import 'dart:async';
 import 'dart:io';
-import 'package:path_provider/path_provider.dart';
-import 'package:open_file/open_file.dart';
 import 'dart:convert';
-
-
+import 'package:share_plus/share_plus.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 class BPMRecord {
   final DateTime timestamp;
@@ -37,6 +34,40 @@ class _PPGServiceState extends State<PPGService> with SingleTickerProviderStateM
 
   List<BPMRecord> bpmRecords = [];
   Timer? _bpmTimer;
+
+  Future<void> pedirPermissaoStorage() async {
+    var status = await Permission.storage.status;
+    if (!status.isGranted) {
+      await Permission.storage.request();
+    }
+  }
+
+  Future<void> exportarECompartilharCSV() async {
+    await pedirPermissaoStorage();
+    try {
+      final directory = Directory('/storage/emulated/0/Download');
+      final file = File('${directory.path}/bpm_history.csv');
+      final buffer = StringBuffer();
+      buffer.writeln('timestamp;bpm');
+      for (final record in bpmRecords) {
+        buffer.writeln('${record.timestamp.toIso8601String()};${record.bpm.toStringAsFixed(2)}');
+      }
+      await file.writeAsString(buffer.toString(), encoding: utf8);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Exportado para Download! Compartilhando...')),
+        );
+        await Share.shareFiles([file.path], text: 'Meu histórico de BPM!');
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao exportar/compartilhar CSV: $e')),
+        );
+      }
+    }
+  }
 
   @override
   void initState() {
@@ -137,36 +168,6 @@ class _PPGServiceState extends State<PPGService> with SingleTickerProviderStateM
     return 0;
   }
 
-  Future<void> exportBPMHistoryToCSV() async {
-  try {
-    final directory = await getExternalStorageDirectory();
-    final path = directory!.path;
-    final file = File('$path/bpm_history.csv');
-
-    final buffer = StringBuffer();
-    buffer.writeln('timestamp;bpm');
-    for (final record in bpmRecords) {
-      buffer.writeln('${record.timestamp.toIso8601String()};${record.bpm.toStringAsFixed(2)}');
-    }
-
-    // Força a codificação UTF-8
-    await file.writeAsString(buffer.toString(), encoding: utf8);
-
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Arquivo salvo: $path/bpm_history.csv')),
-      );
-    }
-
-    await OpenFile.open(file.path);
-  } catch (e) {
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erro ao exportar CSV: $e')),
-      );
-    }
-  }
-}
   @override
   Widget build(BuildContext context) {
     final colorGradient = [Color(0xFFFFE5EC), Color(0xFFFFB6C1)];
@@ -297,11 +298,11 @@ class _PPGServiceState extends State<PPGService> with SingleTickerProviderStateM
                               ),
                             ),
                           ),
-                          const SizedBox(height: 16),
+                          const SizedBox(height: 12),
                           ElevatedButton.icon(
-                            onPressed: bpmRecords.isNotEmpty ? exportBPMHistoryToCSV : null,
-                            icon: Icon(Icons.download),
-                            label: Text('Exportar histórico para CSV'),
+                            onPressed: bpmRecords.isNotEmpty ? exportarECompartilharCSV : null,
+                            icon: Icon(Icons.share),
+                            label: Text('Exportar & Compartilhar CSV'),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.pinkAccent,
                               padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 32),
