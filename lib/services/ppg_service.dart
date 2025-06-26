@@ -41,10 +41,9 @@ class _PPGServiceState extends State<PPGService> with SingleTickerProviderStateM
   Timer? _bpmTimer;
 
   Future<void> pedirPermissaoStorage() async {
-    var status = await Permission.storage.status;
-    if (!status.isGranted) {
-      await Permission.storage.request();
-    }
+    if (await Permission.manageExternalStorage.isGranted) return;
+    await Permission.manageExternalStorage.request();
+    await Permission.storage.request(); // redundante, mas pode ajudar para devices antigos
   }
 
   Future<void> exportarECompartilharCSV() async {
