@@ -13,7 +13,12 @@ import 'package:permission_handler/permission_handler.dart';
 class BPMRecord {
   final DateTime timestamp;
   final double bpm;
-  BPMRecord({required this.timestamp, required this.bpm});
+  final List<double> ppgValues;
+  BPMRecord({
+    required this.timestamp,
+    required this.bpm,
+    required this.ppgValues,
+  });
 }
 
 class PPGService extends StatefulWidget {
@@ -48,10 +53,16 @@ class _PPGServiceState extends State<PPGService> with SingleTickerProviderStateM
       final directory = Directory('/storage/emulated/0/Download');
       final file = File('${directory.path}/bpm_history.csv');
       final buffer = StringBuffer();
-      buffer.writeln('timestamp;bpm');
+
+      buffer.writeln('timestamp;bpm;ppg_values');
       for (final record in bpmRecords) {
-        buffer.writeln('${record.timestamp.toIso8601String()};${record.bpm.toStringAsFixed(2)}');
+        buffer.writeln(
+          '${record.timestamp.toIso8601String()};'
+          '${record.bpm.toStringAsFixed(2)};'
+          '${record.ppgValues.join(',')}'
+        );
       }
+
       await file.writeAsString(buffer.toString(), encoding: utf8);
 
       if (mounted) {
@@ -68,6 +79,7 @@ class _PPGServiceState extends State<PPGService> with SingleTickerProviderStateM
       }
     }
   }
+
 
   @override
   void initState() {
@@ -97,9 +109,14 @@ class _PPGServiceState extends State<PPGService> with SingleTickerProviderStateM
 
     _bpmTimer = Timer.periodic(Duration(milliseconds: 100), (_) {
       if (measuring && bpm > 0) {
-        bpmRecords.add(BPMRecord(timestamp: DateTime.now(), bpm: bpm));
+        bpmRecords.add(BPMRecord(
+          timestamp: DateTime.now(),
+          bpm: bpm,
+          ppgValues: List<double>.from(redValues), // Adicione isso!
+        ));
       }
     });
+    
 
     if (!_isStreaming) {
       _isStreaming = true;
