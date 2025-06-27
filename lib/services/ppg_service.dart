@@ -16,7 +16,6 @@ class PPGRecord {
   PPGRecord({required this.timestamp, required this.ppg});
 }
 
-
 class PPGService extends StatefulWidget {
   final CameraController controller;
 
@@ -43,35 +42,33 @@ class _PPGServiceState extends State<PPGService> with SingleTickerProviderStateM
   }
 
   Future<void> exportarPPGCSV() async {
-  await pedirPermissaoStorage();
-  try {
-    final directory = Directory('/storage/emulated/0/Download');
-    final file = File('${directory.path}/ppg_history.csv');
-    final buffer = StringBuffer();
+    await pedirPermissaoStorage();
+    try {
+      final directory = Directory('/storage/emulated/0/Download');
+      final file = File('${directory.path}/ppg_history.csv');
+      final buffer = StringBuffer();
 
-    buffer.writeln('timestamp;ppg');
-    for (final record in ppgRecords) {
-      buffer.writeln('${record.timestamp.toIso8601String()};${record.ppg.toStringAsFixed(4)}');
-    }
+      buffer.writeln('timestamp;ppg');
+      for (final record in ppgRecords) {
+        buffer.writeln('${record.timestamp.toIso8601String()};${record.ppg.toStringAsFixed(4)}');
+      }
 
-    await file.writeAsString(buffer.toString(), encoding: utf8);
+      await file.writeAsString(buffer.toString(), encoding: utf8);
 
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Exportado para Download! Compartilhando...')),
-      );
-      await Share.shareFiles([file.path], text: 'PPG bruto exportado!');
-    }
-  } catch (e) {
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erro ao exportar/compartilhar CSV: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Exportado para Download! Compartilhando...')),
+        );
+        await Share.shareFiles([file.path], text: 'PPG bruto exportado!');
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao exportar/compartilhar CSV: $e')),
+        );
+      }
     }
   }
-}
-
-
 
   @override
   void initState() {
@@ -99,17 +96,20 @@ class _PPGServiceState extends State<PPGService> with SingleTickerProviderStateM
       bpm = 0;
     });
 
-    _bpmTimer = Timer.periodic(Duration(milliseconds: 100), (_) {
-      if (measuring && redValues.isNotEmpty) {
-        final double lastPPG = redValues.last;
-        ppgRecords.add(PPGRecord(timestamp: DateTime.now(), ppg: lastPPG));
-      }
-  });
+    // NÃO precisa mais do Timer.periodic!
+    // Toda gravação será feita no frame do stream abaixo.
 
     if (!_isStreaming) {
       _isStreaming = true;
       widget.controller.startImageStream((CameraImage image) {
         double avgRed = _calculateAvgRed(image);
+
+        // Salva PPG bruto e timestamp a cada frame!
+        ppgRecords.add(PPGRecord(
+          timestamp: DateTime.now(),
+          ppg: avgRed,
+        ));
+
         setState(() {
           redValues.add(avgRed);
           if (redValues.length > 256) {
@@ -130,7 +130,7 @@ class _PPGServiceState extends State<PPGService> with SingleTickerProviderStateM
   }
 
   Future<void> _stopMeasurement() async {
-    _bpmTimer?.cancel();
+    //_bpmTimer?.cancel(); // Não precisa mais!
 
     if (_isStreaming) {
       try {
