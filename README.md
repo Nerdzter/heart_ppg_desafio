@@ -1,6 +1,7 @@
 
-# Heart PPG – Medidor de Frequência Cardíaca por PPG
+# Medidor de Frequência Cardíaca por PPG
 
+Autor: Nayderson Oliveira | Dev Fullstack
 Um aplicativo Flutter que mede sua frequência cardíaca usando a câmera do celular pelo método PPG (fotopletismografia).
 
 ---
