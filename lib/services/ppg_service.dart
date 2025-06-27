@@ -10,16 +10,12 @@ import 'dart:convert';
 import 'package:share_plus/share_plus.dart';
 import 'package:permission_handler/permission_handler.dart';
 
-class BPMRecord {
+class PPGRecord {
   final DateTime timestamp;
-  final double bpm;
-  final List<double> ppgValues;
-  BPMRecord({
-    required this.timestamp,
-    required this.bpm,
-    required this.ppgValues,
-  });
+  final double ppg;
+  PPGRecord({required this.timestamp, required this.ppg});
 }
+
 
 class PPGService extends StatefulWidget {
   final CameraController controller;
@@ -37,7 +33,7 @@ class _PPGServiceState extends State<PPGService> with SingleTickerProviderStateM
   bool measuring = false;
   late AnimationController _pulseController;
 
-  List<BPMRecord> bpmRecords = [];
+  List<PPGRecord> ppgRecords = [];
   Timer? _bpmTimer;
 
   Future<void> pedirPermissaoStorage() async {
@@ -46,38 +42,35 @@ class _PPGServiceState extends State<PPGService> with SingleTickerProviderStateM
     await Permission.storage.request(); // redundante, mas pode ajudar para devices antigos
   }
 
-  Future<void> exportarECompartilharCSV() async {
-    await pedirPermissaoStorage();
-    try {
-      final directory = Directory('/storage/emulated/0/Download');
-      final file = File('${directory.path}/bpm_history.csv');
-      final buffer = StringBuffer();
+  Future<void> exportarPPGCSV() async {
+  await pedirPermissaoStorage();
+  try {
+    final directory = Directory('/storage/emulated/0/Download');
+    final file = File('${directory.path}/ppg_history.csv');
+    final buffer = StringBuffer();
 
-      buffer.writeln('timestamp;bpm;ppg_values');
-      for (final record in bpmRecords) {
-        buffer.writeln(
-          '${record.timestamp.toIso8601String()};'
-          '${record.bpm.toStringAsFixed(2)};'
-          '${record.ppgValues.join(',')}'
-        );
-      }
+    buffer.writeln('timestamp;ppg');
+    for (final record in ppgRecords) {
+      buffer.writeln('${record.timestamp.toIso8601String()};${record.ppg.toStringAsFixed(4)}');
+    }
 
-      await file.writeAsString(buffer.toString(), encoding: utf8);
+    await file.writeAsString(buffer.toString(), encoding: utf8);
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Exportado para Download! Compartilhando...')),
-        );
-        await Share.shareFiles([file.path], text: 'Meu histórico de BPM!');
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao exportar/compartilhar CSV: $e')),
-        );
-      }
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Exportado para Download! Compartilhando...')),
+      );
+      await Share.shareFiles([file.path], text: 'PPG bruto exportado!');
+    }
+  } catch (e) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erro ao exportar/compartilhar CSV: $e')),
+      );
     }
   }
+}
+
 
 
   @override
@@ -102,20 +95,16 @@ class _PPGServiceState extends State<PPGService> with SingleTickerProviderStateM
     setState(() {
       measuring = true;
       redValues.clear();
+      ppgRecords.clear();
       bpm = 0;
-      bpmRecords.clear();
     });
 
     _bpmTimer = Timer.periodic(Duration(milliseconds: 100), (_) {
-      if (measuring && bpm > 0) {
-        bpmRecords.add(BPMRecord(
-          timestamp: DateTime.now(),
-          bpm: bpm,
-          ppgValues: List<double>.from(redValues), // Adicione isso!
-        ));
+      if (measuring && redValues.isNotEmpty) {
+        final double lastPPG = redValues.last;
+        ppgRecords.add(PPGRecord(timestamp: DateTime.now(), ppg: lastPPG));
       }
-    });
-    
+  });
 
     if (!_isStreaming) {
       _isStreaming = true;
@@ -316,7 +305,7 @@ class _PPGServiceState extends State<PPGService> with SingleTickerProviderStateM
                           ),
                           const SizedBox(height: 12),
                           ElevatedButton.icon(
-                            onPressed: bpmRecords.isNotEmpty ? exportarECompartilharCSV : null,
+                            onPressed: ppgRecords.isNotEmpty ? exportarPPGCSV : null,
                             icon: Icon(Icons.share),
                             label: Text('Exportar & Compartilhar CSV'),
                             style: ElevatedButton.styleFrom(
