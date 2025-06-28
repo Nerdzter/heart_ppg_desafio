@@ -10,6 +10,32 @@ import 'dart:convert';
 import 'package:share_plus/share_plus.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+class HighPassFilter {
+  final double alpha;
+  double? prevInput;
+  double? prevOutput;
+
+  HighPassFilter({required double cutoffHz, required double sampleRate})
+      : alpha = (sampleRate / (sampleRate + 2 * 3.1416 * cutoffHz));
+
+  double filter(double input) {
+    if (prevInput == null) {
+      prevInput = input;
+      prevOutput = 0;
+      return 0;
+    }
+    double output = alpha * (prevOutput! + input - prevInput!);
+    prevInput = input;
+    prevOutput = output;
+    return output;
+  }
+
+  void reset() {
+    prevInput = null;
+    prevOutput = null;
+  }
+}
+
 class PPGRecord {
   final DateTime timestamp;
   final double ppg;
@@ -30,7 +56,10 @@ class _PPGServiceState extends State<PPGService> with SingleTickerProviderStateM
   double bpm = 0;
   bool _isStreaming = false;
   bool measuring = false;
+
   late AnimationController _pulseController;
+  // Parâmetros recomendados: corte em 0.5~1 Hz, sampleRate do seu frame rate (ex: 30 Hz)
+  late HighPassFilter _highPass;
 
   List<PPGRecord> ppgRecords = [];
   Timer? _bpmTimer;
@@ -72,7 +101,8 @@ class _PPGServiceState extends State<PPGService> with SingleTickerProviderStateM
 
   @override
   void initState() {
-    super.initState();
+    super.initState(); // sempre primeiro, por padrão Flutter
+    _highPass = HighPassFilter(cutoffHz: 0.8, sampleRate: 30.0);
     _pulseController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 900),
@@ -80,6 +110,7 @@ class _PPGServiceState extends State<PPGService> with SingleTickerProviderStateM
       upperBound: 1.13,
     )..repeat(reverse: true);
   }
+
 
   @override
   void dispose() {
@@ -104,14 +135,17 @@ class _PPGServiceState extends State<PPGService> with SingleTickerProviderStateM
       widget.controller.startImageStream((CameraImage image) {
         double avgRed = _calculateAvgRed(image);
 
-        // Salva PPG bruto e timestamp a cada frame!
+        // 1. Filtrar PPG com passa-alta
+        double filteredRed = _highPass.filter(avgRed);
+
+        // 2. Salvar apenas PPG filtrado nas listas:
         ppgRecords.add(PPGRecord(
           timestamp: DateTime.now(),
-          ppg: avgRed,
+          ppg: filteredRed,
         ));
 
         setState(() {
-          redValues.add(avgRed);
+          redValues.add(filteredRed);
           if (redValues.length > 256) {
             redValues.removeAt(0);
           }
