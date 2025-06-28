@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
-import '../utils/signal_processing.dart';
+import '../utils/signal_processing.dart'; // <-- Use o filtro daqui!
 import '../widgets/heart_rate_chart.dart';
 import '../models/heart_rate_sample.dart';
 import 'history_service.dart';
@@ -9,32 +9,6 @@ import 'dart:io';
 import 'dart:convert';
 import 'package:share_plus/share_plus.dart';
 import 'package:permission_handler/permission_handler.dart';
-
-class HighPassFilter {
-  final double alpha;
-  double? prevInput;
-  double? prevOutput;
-
-  HighPassFilter({required double cutoffHz, required double sampleRate})
-      : alpha = (sampleRate / (sampleRate + 2 * 3.1416 * cutoffHz));
-
-  double filter(double input) {
-    if (prevInput == null) {
-      prevInput = input;
-      prevOutput = 0;
-      return 0;
-    }
-    double output = alpha * (prevOutput! + input - prevInput!);
-    prevInput = input;
-    prevOutput = output;
-    return output;
-  }
-
-  void reset() {
-    prevInput = null;
-    prevOutput = null;
-  }
-}
 
 class PPGRecord {
   final DateTime timestamp;
@@ -58,8 +32,7 @@ class _PPGServiceState extends State<PPGService> with SingleTickerProviderStateM
   bool measuring = false;
 
   late AnimationController _pulseController;
-  // Parâmetros recomendados: corte em 0.5~1 Hz, sampleRate do seu frame rate (ex: 30 Hz)
-  late HighPassFilter _highPass;
+  late HighPassFilter _highPass;   // Só a versão do signal_processing.dart!
 
   List<PPGRecord> ppgRecords = [];
   Timer? _bpmTimer;
@@ -102,7 +75,7 @@ class _PPGServiceState extends State<PPGService> with SingleTickerProviderStateM
   @override
   void initState() {
     super.initState(); // sempre primeiro, por padrão Flutter
-    _highPass = HighPassFilter(cutoffHz: 0.8, sampleRate: 30.0);
+    _highPass = HighPassFilter(cutoffHz: 0.8, sampleRate: 30.0); // ajuste seu cutoff aqui!
     _pulseController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 900),
@@ -110,7 +83,6 @@ class _PPGServiceState extends State<PPGService> with SingleTickerProviderStateM
       upperBound: 1.13,
     )..repeat(reverse: true);
   }
-
 
   @override
   void dispose() {
@@ -152,7 +124,11 @@ class _PPGServiceState extends State<PPGService> with SingleTickerProviderStateM
         });
 
         if (redValues.length >= 128) {
-          double? calcBpm = calculateBPM(redValues, image.format.group.toString());
+          double? calcBpm = calculateBPM(
+            redValues,
+            image.format.group.toString(),
+            useHighPass: false, // já está filtrado
+          );
           if (calcBpm != null && calcBpm > 30 && calcBpm < 220) {
             setState(() {
               bpm = calcBpm;
@@ -164,8 +140,6 @@ class _PPGServiceState extends State<PPGService> with SingleTickerProviderStateM
   }
 
   Future<void> _stopMeasurement() async {
-    //_bpmTimer?.cancel(); // Não precisa mais!
-
     if (_isStreaming) {
       try {
         await widget.controller.stopImageStream();
