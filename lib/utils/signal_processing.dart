@@ -146,3 +146,29 @@ double? calculateBPMByFFT(List<double> signal, {double sampleRate = 30.0, double
   final peakFreq = freqs[peakIdx];
   return peakFreq * 60.0; // BPM
 }
+
+// ... (restante já postado antes)
+
+// Filtro passa-baixa (média móvel)
+List<double> movingAverage(List<double> data, int window) {
+  if (window < 1 || data.isEmpty) return List.from(data);
+  List<double> out = [];
+  for (int i = 0; i < data.length; i++) {
+    int start = (i - window + 1).clamp(0, data.length - 1);
+    double avg = data.sublist(start, i + 1).reduce((a, b) => a + b) / (i - start + 1);
+    out.add(avg);
+  }
+  return out;
+}
+
+// Diagnóstico de qualidade do BPM
+enum BPMQuality { excelente, bom, ruim }
+
+BPMQuality bpmQuality(double? bpmPeaks, double? bpmAutocorr) {
+  if (bpmPeaks == null || bpmAutocorr == null) return BPMQuality.ruim;
+  double diff = (bpmPeaks - bpmAutocorr).abs();
+  double avg = (bpmPeaks + bpmAutocorr) / 2;
+  if (diff / avg < 0.1) return BPMQuality.excelente;
+  if (diff / avg < 0.25) return BPMQuality.bom;
+  return BPMQuality.ruim;
+}

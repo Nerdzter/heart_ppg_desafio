@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
-import '../utils/signal_processing.dart'; // Filtros, FFT, autocorrelação, BPM
-import '../utils/roi_processing.dart';   // ROI adaptativa
+import '../utils/signal_processing.dart';
+import '../utils/roi_processing.dart';
 import '../widgets/heart_rate_chart.dart';
 import '../models/heart_rate_sample.dart';
 import 'history_service.dart';
@@ -35,14 +35,12 @@ class _PPGServiceState extends State<PPGService> with SingleTickerProviderStateM
   late ROIProcessor _roi;
   late AnimationController _pulseController;
   late HighPassFilter _highPass;
-
   List<PPGRecord> ppgRecords = [];
-  Timer? _bpmTimer;
 
   Future<void> pedirPermissaoStorage() async {
     if (await Permission.manageExternalStorage.isGranted) return;
     await Permission.manageExternalStorage.request();
-    await Permission.storage.request(); // redundante, mas pode ajudar para devices antigos
+    await Permission.storage.request();
   }
 
   Future<void> exportarPPGCSV() async {
@@ -106,14 +104,18 @@ class _PPGServiceState extends State<PPGService> with SingleTickerProviderStateM
       _isStreaming = true;
       widget.controller.startImageStream((CameraImage image) {
         try {
-          // Extrai canal vermelho da imagem
           List<int> redMatrix = extractRedMatrix(image);
           double roiRed = _roi.processFrame(redMatrix, image.width, image.height);
 
-          // Filtrar PPG com passa-alta
           double filteredRed = _highPass.filter(roiRed);
 
-          // Salvar nas listas
+          // Passa-baixa
+          List<double> tmpVals = List.from(redValues)..add(filteredRed);
+          if (tmpVals.length > 7) {
+            tmpVals = smoothSignal(tmpVals, windowSize: 7);
+            filteredRed = tmpVals.last;
+          }
+
           ppgRecords.add(PPGRecord(
             timestamp: DateTime.now(),
             ppg: filteredRed,
@@ -126,21 +128,20 @@ class _PPGServiceState extends State<PPGService> with SingleTickerProviderStateM
             }
           });
 
-          // Calcula BPM se tiver amostras suficientes
+          // Cálculo de BPM (apenas picos)
           if (redValues.length >= 128) {
-            double? calcBpm = calculateBPM(
+            double? bpm1 = calculateBPM(
               redValues,
               image.format.group.toString(),
-              useHighPass: false, // já está filtrado
+              useHighPass: false,
             );
-            if (calcBpm != null && calcBpm > 30 && calcBpm < 220) {
-              setState(() {
-                bpm = calcBpm;
-              });
+            if (bpm1 != null && bpm1 > 30 && bpm1 < 220) {
+              bpm = bpm1;
+              setState(() {});
             }
           }
         } catch (e) {
-          // Só para não travar o stream em erro inesperado
+          // Não travar!
         }
       });
     }
@@ -167,9 +168,11 @@ class _PPGServiceState extends State<PPGService> with SingleTickerProviderStateM
     });
   }
 
-  /// Extrai a matriz do canal vermelho (BGRA8888)
   List<int> extractRedMatrix(CameraImage image) {
-    if (image.format.group == ImageFormatGroup.bgra8888) {
+    if (image.format.group == ImageFormatGroup.yuv420) {
+      final yPlane = image.planes[0];
+      return yPlane.bytes;
+    } else if (image.format.group == ImageFormatGroup.bgra8888) {
       final data = image.planes[0].bytes;
       List<int> reds = [];
       for (int i = 0; i < data.length; i += 4) {
@@ -177,7 +180,6 @@ class _PPGServiceState extends State<PPGService> with SingleTickerProviderStateM
       }
       return reds;
     }
-    // Adapte se precisar para YUV ou outros formatos!
     throw Exception('Formato de imagem não suportado');
   }
 
@@ -256,9 +258,10 @@ class _PPGServiceState extends State<PPGService> with SingleTickerProviderStateM
                                           strokeWidth: 5,
                                         ),
                                         const SizedBox(height: 18),
-                                        const Text(
+                                        Text(
                                           'Calculando...',
-                                          style: TextStyle(color: Colors.white70, fontSize: 18),
+                                          style: TextStyle(color: Colors.white70, fontSize: 16),
+                                          textAlign: TextAlign.center,
                                         )
                                       ],
                                     ))
@@ -327,25 +330,15 @@ class _PPGServiceState extends State<PPGService> with SingleTickerProviderStateM
                         ],
                       ),
                 const SizedBox(height: 32),
-                measuring
-                    ? Text(
-                        'Coloque o dedo sobre a câmera e aguarde...',
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: Colors.pink.shade600,
-                          fontWeight: FontWeight.w500,
-                        ),
-                        textAlign: TextAlign.center,
-                      )
-                    : Text(
-                        'Pronto para medir!',
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: Colors.black54,
-                          fontWeight: FontWeight.w500,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
+                Text(
+                  bpm > 0 ? "Seu batimento foi detectado!" : "Coloque o dedo e aguarde...",
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: bpm > 0 ? Colors.green : Colors.pink.shade600,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
               ],
             ),
           ),

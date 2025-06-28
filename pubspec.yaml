@@ -17,6 +17,7 @@ dependencies:
   flutter_launcher_icons: "^0.13.1"
   permission_handler: ^11.3.1
   scidart: ^0.0.2-dev.12
+  fl_chart: ^0.68.0
 
 
 flutter_icons:
