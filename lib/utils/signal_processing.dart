@@ -51,3 +51,29 @@ double? calculateBPM(List<double> signal, String formatGroup) {
   double bpm = 60.0 * fps / avgInterval;
   return bpm;
 }
+
+// Filtro Passa-Alta (IIR simples)
+class HighPassFilter {
+  final double cutoffHz;
+  final double sampleRate;
+  double? _lastX, _lastY;
+  late double _alpha;
+
+  HighPassFilter({required this.cutoffHz, required this.sampleRate}) {
+    final rc = 1.0 / (2 * pi * cutoffHz);
+    _alpha = rc / (rc + (1.0 / sampleRate));
+  }
+
+  double filter(double x) {
+    double y = (_lastY ?? 0) + _alpha * ((x - (_lastX ?? x)));
+    _lastX = x;
+    _lastY = y;
+    return y;
+  }
+
+  List<double> filterList(List<double> signal) {
+    _lastX = null;
+    _lastY = null;
+    return signal.map((x) => filter(x)).toList();
+  }
+}

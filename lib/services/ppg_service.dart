@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
-import '../utils/signal_processing.dart';
+import '../utils/signal_processing.dart'; // Agora inclui o filtro passa-alta!
 import '../widgets/heart_rate_chart.dart';
 import '../models/heart_rate_sample.dart';
 import 'history_service.dart';
@@ -31,6 +31,8 @@ class _PPGServiceState extends State<PPGService> with SingleTickerProviderStateM
   bool _isStreaming = false;
   bool measuring = false;
   late AnimationController _pulseController;
+
+  late HighPassFilter _highPass;
 
   List<PPGRecord> ppgRecords = [];
   Timer? _bpmTimer;
@@ -73,6 +75,7 @@ class _PPGServiceState extends State<PPGService> with SingleTickerProviderStateM
   @override
   void initState() {
     super.initState();
+    _highPass = HighPassFilter(cutoffHz: 0.3, sampleRate: 30.0); // <-- Só o passa-alta aqui!
     _pulseController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 900),
@@ -96,22 +99,22 @@ class _PPGServiceState extends State<PPGService> with SingleTickerProviderStateM
       bpm = 0;
     });
 
-    // NÃO precisa mais do Timer.periodic!
-    // Toda gravação será feita no frame do stream abaixo.
-
     if (!_isStreaming) {
       _isStreaming = true;
       widget.controller.startImageStream((CameraImage image) {
         double avgRed = _calculateAvgRed(image);
 
-        // Salva PPG bruto e timestamp a cada frame!
+        // Aplica o filtro passa-alta aqui!
+        double filteredRed = _highPass.filter(avgRed);
+
+        // Salva sinal filtrado e timestamp a cada frame!
         ppgRecords.add(PPGRecord(
           timestamp: DateTime.now(),
-          ppg: avgRed,
+          ppg: filteredRed,
         ));
 
         setState(() {
-          redValues.add(avgRed);
+          redValues.add(filteredRed);
           if (redValues.length > 256) {
             redValues.removeAt(0);
           }
@@ -130,8 +133,6 @@ class _PPGServiceState extends State<PPGService> with SingleTickerProviderStateM
   }
 
   Future<void> _stopMeasurement() async {
-    //_bpmTimer?.cancel(); // Não precisa mais!
-
     if (_isStreaming) {
       try {
         await widget.controller.stopImageStream();
