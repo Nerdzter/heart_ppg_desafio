@@ -126,3 +126,23 @@ double? calculateBPMByAutocorr(List<double> signal, {double sampleRate = 30.0, i
   double bpm = 60.0 * sampleRate / bestLag;
   return bpm;
 }
+
+// BPM por FFT
+double? calculateBPMByFFT(List<double> signal, {double sampleRate = 30.0, double minBpm = 40, double maxBpm = 200}) {
+  if (signal.length < 64) return null;
+  final spectrum = computeFFT(signal);
+  final n = spectrum.length;
+  final freqs = List<double>.generate(n ~/ 2, (i) => i * sampleRate / n);
+  final minIdx = freqs.indexWhere((f) => f >= minBpm / 60);
+  final maxIdx = freqs.lastIndexWhere((f) => f <= maxBpm / 60);
+  int peakIdx = minIdx;
+  double peakVal = spectrum[minIdx];
+  for (int i = minIdx + 1; i <= maxIdx; i++) {
+    if (spectrum[i] > peakVal) {
+      peakVal = spectrum[i];
+      peakIdx = i;
+    }
+  }
+  final peakFreq = freqs[peakIdx];
+  return peakFreq * 60.0; // BPM
+}

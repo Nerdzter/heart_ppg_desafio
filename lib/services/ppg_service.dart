@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
-import '../utils/signal_processing.dart'; // <-- Use o filtro daqui!
+import '../utils/signal_processing.dart'; // Filtros, FFT, autocorrelação, BPM
+import '../utils/roi_processing.dart';   // ROI adaptativa
 import '../widgets/heart_rate_chart.dart';
 import '../models/heart_rate_sample.dart';
 import 'history_service.dart';
@@ -31,8 +32,9 @@ class _PPGServiceState extends State<PPGService> with SingleTickerProviderStateM
   bool _isStreaming = false;
   bool measuring = false;
 
+  late ROIProcessor _roi;
   late AnimationController _pulseController;
-  late HighPassFilter _highPass;   // Só a versão do signal_processing.dart!
+  late HighPassFilter _highPass;
 
   List<PPGRecord> ppgRecords = [];
   Timer? _bpmTimer;
@@ -74,8 +76,9 @@ class _PPGServiceState extends State<PPGService> with SingleTickerProviderStateM
 
   @override
   void initState() {
-    super.initState(); // sempre primeiro, por padrão Flutter
-    _highPass = HighPassFilter(cutoffHz: 0.8, sampleRate: 30.0); // ajuste seu cutoff aqui!
+    super.initState();
+    _highPass = HighPassFilter(cutoffHz: 0.8, sampleRate: 30.0);
+    _roi = ROIProcessor(blockSize: 16, historyLength: 60, topPercent: 0.15);
     _pulseController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 900),
@@ -99,41 +102,45 @@ class _PPGServiceState extends State<PPGService> with SingleTickerProviderStateM
       bpm = 0;
     });
 
-    // NÃO precisa mais do Timer.periodic!
-    // Toda gravação será feita no frame do stream abaixo.
-
     if (!_isStreaming) {
       _isStreaming = true;
       widget.controller.startImageStream((CameraImage image) {
-        double avgRed = _calculateAvgRed(image);
+        try {
+          // Extrai canal vermelho da imagem
+          List<int> redMatrix = extractRedMatrix(image);
+          double roiRed = _roi.processFrame(redMatrix, image.width, image.height);
 
-        // 1. Filtrar PPG com passa-alta
-        double filteredRed = _highPass.filter(avgRed);
+          // Filtrar PPG com passa-alta
+          double filteredRed = _highPass.filter(roiRed);
 
-        // 2. Salvar apenas PPG filtrado nas listas:
-        ppgRecords.add(PPGRecord(
-          timestamp: DateTime.now(),
-          ppg: filteredRed,
-        ));
+          // Salvar nas listas
+          ppgRecords.add(PPGRecord(
+            timestamp: DateTime.now(),
+            ppg: filteredRed,
+          ));
 
-        setState(() {
-          redValues.add(filteredRed);
-          if (redValues.length > 256) {
-            redValues.removeAt(0);
+          setState(() {
+            redValues.add(filteredRed);
+            if (redValues.length > 256) {
+              redValues.removeAt(0);
+            }
+          });
+
+          // Calcula BPM se tiver amostras suficientes
+          if (redValues.length >= 128) {
+            double? calcBpm = calculateBPM(
+              redValues,
+              image.format.group.toString(),
+              useHighPass: false, // já está filtrado
+            );
+            if (calcBpm != null && calcBpm > 30 && calcBpm < 220) {
+              setState(() {
+                bpm = calcBpm;
+              });
+            }
           }
-        });
-
-        if (redValues.length >= 128) {
-          double? calcBpm = calculateBPM(
-            redValues,
-            image.format.group.toString(),
-            useHighPass: false, // já está filtrado
-          );
-          if (calcBpm != null && calcBpm > 30 && calcBpm < 220) {
-            setState(() {
-              bpm = calcBpm;
-            });
-          }
+        } catch (e) {
+          // Só para não travar o stream em erro inesperado
         }
       });
     }
@@ -160,25 +167,18 @@ class _PPGServiceState extends State<PPGService> with SingleTickerProviderStateM
     });
   }
 
-  double _calculateAvgRed(CameraImage image) {
-    if (image.format.group == ImageFormatGroup.yuv420) {
-      final plane = image.planes[0];
-      final data = plane.bytes;
-      int sum = 0;
-      for (var i = 0; i < data.length; i += 2) {
-        sum += data[i];
-      }
-      return sum / (data.length ~/ 2);
-    } else if (image.format.group == ImageFormatGroup.bgra8888) {
+  /// Extrai a matriz do canal vermelho (BGRA8888)
+  List<int> extractRedMatrix(CameraImage image) {
+    if (image.format.group == ImageFormatGroup.bgra8888) {
       final data = image.planes[0].bytes;
-      int sum = 0, count = 0;
+      List<int> reds = [];
       for (int i = 0; i < data.length; i += 4) {
-        sum += data[i + 2];
-        count++;
+        reds.add(data[i + 2]);
       }
-      return count > 0 ? sum / count : 0;
+      return reds;
     }
-    return 0;
+    // Adapte se precisar para YUV ou outros formatos!
+    throw Exception('Formato de imagem não suportado');
   }
 
   @override
