@@ -142,7 +142,7 @@ RELATÓRIO DE ANÁLISE PPG
 - Máximo: {ppg_max:.2f}
 
 2. Interpretação dos Gráficos:
-- O gráfico bruto revela oscilações naturais do sinal PPG, além de artefatos visíveis como saltos abruptos.
+- O gráfico  bruto revela oscilações naturais do sinal PPG, além de artefatos visíveis como saltos abruptos.
 - O gráfico filtrado suaviza ruídos, permitindo melhor percepção da dinâmica real do pulso.
 - Os picos (batimentos) são identificados automaticamente; a série BPM mostra a frequência cardíaca ao longo do tempo.
 - As faixas verdes nos gráficos marcam períodos de coerência cardíaca, normalmente associados a respiração ritmada e estados de relaxamento.
