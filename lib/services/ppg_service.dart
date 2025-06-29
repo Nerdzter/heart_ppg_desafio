@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
-import '../utils/signal_processing.dart'; // Agora inclui o filtro passa-alta!
+import '../utils/signal_processing.dart';
 import '../widgets/heart_rate_chart.dart';
 import '../models/heart_rate_sample.dart';
 import 'history_service.dart';
@@ -32,15 +32,18 @@ class _PPGServiceState extends State<PPGService> with SingleTickerProviderStateM
   bool measuring = false;
   late AnimationController _pulseController;
 
-  late HighPassFilter _highPass;
+  HighPassFilter? _highPass;
+  double _sampleRate = 30.0;
+  DateTime? _lastFrameTime;
+  int _frameCount = 0;
+  Timer? _fpsTimer;
 
   List<PPGRecord> ppgRecords = [];
-  Timer? _bpmTimer;
 
   Future<void> pedirPermissaoStorage() async {
     if (await Permission.manageExternalStorage.isGranted) return;
     await Permission.manageExternalStorage.request();
-    await Permission.storage.request(); // redundante, mas pode ajudar para devices antigos
+    await Permission.storage.request();
   }
 
   Future<void> exportarPPGCSV() async {
@@ -75,7 +78,7 @@ class _PPGServiceState extends State<PPGService> with SingleTickerProviderStateM
   @override
   void initState() {
     super.initState();
-    _highPass = HighPassFilter(cutoffHz: 0.3, sampleRate: 30.0); // <-- Só o passa-alta aqui!
+    _highPass = HighPassFilter(cutoffHz: 0.3, sampleRate: _sampleRate); // inicial, depois será recalculado!
     _pulseController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 900),
@@ -88,6 +91,7 @@ class _PPGServiceState extends State<PPGService> with SingleTickerProviderStateM
   void dispose() {
     _stopMeasurement();
     _pulseController.dispose();
+    _fpsTimer?.cancel();
     super.dispose();
   }
 
@@ -99,15 +103,28 @@ class _PPGServiceState extends State<PPGService> with SingleTickerProviderStateM
       bpm = 0;
     });
 
+    _frameCount = 0;
+    _lastFrameTime = DateTime.now();
+
+    _fpsTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      // Atualiza sampleRate a cada segundo
+      setState(() {
+        _sampleRate = _frameCount.clamp(10, 120).toDouble();
+        _highPass = HighPassFilter(cutoffHz: 0.3, sampleRate: _sampleRate);
+        _frameCount = 0;
+      });
+    });
+
     if (!_isStreaming) {
       _isStreaming = true;
       widget.controller.startImageStream((CameraImage image) {
+        _frameCount += 1;
+
         double avgRed = _calculateAvgRed(image);
 
-        // Aplica o filtro passa-alta aqui!
-        double filteredRed = _highPass.filter(avgRed);
+        // Filtro passa-alta com sampleRate adaptativo!
+        double filteredRed = _highPass!.filter(avgRed);
 
-        // Salva sinal filtrado e timestamp a cada frame!
         ppgRecords.add(PPGRecord(
           timestamp: DateTime.now(),
           ppg: filteredRed,
@@ -121,7 +138,7 @@ class _PPGServiceState extends State<PPGService> with SingleTickerProviderStateM
         });
 
         if (redValues.length >= 128) {
-          double? calcBpm = calculateBPM(redValues, image.format.group.toString());
+          double? calcBpm = calculateBPM(redValues, image.format.group.toString(), sampleRate: _sampleRate);
           if (calcBpm != null && calcBpm > 30 && calcBpm < 220) {
             setState(() {
               bpm = calcBpm;
@@ -133,6 +150,7 @@ class _PPGServiceState extends State<PPGService> with SingleTickerProviderStateM
   }
 
   Future<void> _stopMeasurement() async {
+    _fpsTimer?.cancel();
     if (_isStreaming) {
       try {
         await widget.controller.stopImageStream();
@@ -236,6 +254,14 @@ class _PPGServiceState extends State<PPGService> with SingleTickerProviderStateM
                                           'BPM',
                                           style: TextStyle(
                                             fontSize: 22,
+                                            color: Colors.white70,
+                                          ),
+                                        ),
+                                        SizedBox(height: 12),
+                                        Text(
+                                          'FPS: ${_sampleRate.toStringAsFixed(0)}',
+                                          style: const TextStyle(
+                                            fontSize: 14,
                                             color: Colors.white70,
                                           ),
                                         ),

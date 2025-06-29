@@ -26,7 +26,11 @@ List<int> detectPeaks(List<double> signal, {double threshold = 0.5, int minDista
 }
 
 // Calcula BPM a partir dos picos detectados
-double? calculateBPM(List<double> signal, String formatGroup) {
+double? calculateBPM(
+  List<double> signal,
+  String formatGroup, {
+  double sampleRate = 30.0, // Agora pode ser passado!
+}) {
   if (signal.length < 64) return null;
   final smoothed = smoothSignal(signal, windowSize: 5);
   final double baseline = smoothed.reduce((a, b) => a + b) / smoothed.length;
@@ -44,11 +48,8 @@ double? calculateBPM(List<double> signal, String formatGroup) {
 
   double avgInterval = intervals.reduce((a, b) => a + b) / intervals.length;
 
-  // Supondo ~30 FPS (frames por segundo)
-  double fps = 30.0;
-  // Alguns dispositivos Android podem variar (faça ajuste fino em device real se necessário)
-
-  double bpm = 60.0 * fps / avgInterval;
+  // Agora usa o sampleRate fornecido!
+  double bpm = 60.0 * sampleRate / avgInterval;
   return bpm;
 }
 
