@@ -34,6 +34,7 @@ class _PPGServiceState extends State<PPGService> with SingleTickerProviderStateM
 
   HighPassFilter? _highPass;
   double _sampleRate = 30.0;
+  double _cutoffHz = 0.3; // Valor inicial, ajustável pelo usuário
   DateTime? _lastFrameTime;
   int _frameCount = 0;
   Timer? _fpsTimer;
@@ -78,7 +79,7 @@ class _PPGServiceState extends State<PPGService> with SingleTickerProviderStateM
   @override
   void initState() {
     super.initState();
-    _highPass = HighPassFilter(cutoffHz: 0.3, sampleRate: _sampleRate); // inicial, depois será recalculado!
+    _highPass = HighPassFilter(cutoffHz: _cutoffHz, sampleRate: _sampleRate);
     _pulseController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 900),
@@ -107,10 +108,9 @@ class _PPGServiceState extends State<PPGService> with SingleTickerProviderStateM
     _lastFrameTime = DateTime.now();
 
     _fpsTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-      // Atualiza sampleRate a cada segundo
       setState(() {
         _sampleRate = _frameCount.clamp(10, 120).toDouble();
-        _highPass = HighPassFilter(cutoffHz: 0.3, sampleRate: _sampleRate);
+        _highPass = HighPassFilter(cutoffHz: _cutoffHz, sampleRate: _sampleRate);
         _frameCount = 0;
       });
     });
@@ -119,10 +119,9 @@ class _PPGServiceState extends State<PPGService> with SingleTickerProviderStateM
       _isStreaming = true;
       widget.controller.startImageStream((CameraImage image) {
         _frameCount += 1;
-
         double avgRed = _calculateAvgRed(image);
 
-        // Filtro passa-alta com sampleRate adaptativo!
+        // Filtra usando passa-alta com cutoff ajustável!
         double filteredRed = _highPass!.filter(avgRed);
 
         ppgRecords.add(PPGRecord(
@@ -190,6 +189,15 @@ class _PPGServiceState extends State<PPGService> with SingleTickerProviderStateM
       return count > 0 ? sum / count : 0;
     }
     return 0;
+  }
+
+  void _updateCutoffHz(double value) {
+    setState(() {
+      _cutoffHz = value;
+      _highPass = HighPassFilter(cutoffHz: _cutoffHz, sampleRate: _sampleRate);
+      // Ao mudar cutoff, pode limpar sinal para evitar ruído antigo
+      // redValues.clear(); // Descomente se quiser resetar ao trocar
+    });
   }
 
   @override
@@ -302,7 +310,25 @@ class _PPGServiceState extends State<PPGService> with SingleTickerProviderStateM
                     ),
                   ),
                 ),
-                const SizedBox(height: 30),
+                const SizedBox(height: 16),
+                // SLIDER PARA AJUSTAR CUTOFF DO FILTRO PASSA-ALTA
+                Column(
+                  children: [
+                    const Text(
+                      "Ajuste Filtro Passa-Alta (Hz)",
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                    ),
+                    Slider(
+                      value: _cutoffHz,
+                      min: 0.1,
+                      max: 3.0,
+                      divisions: 30,
+                      label: "${_cutoffHz.toStringAsFixed(2)} Hz",
+                      onChanged: (value) => _updateCutoffHz(value),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 18),
                 measuring
                     ? ElevatedButton.icon(
                         onPressed: _stopMeasurement,
